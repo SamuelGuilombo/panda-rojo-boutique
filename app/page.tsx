@@ -39,14 +39,14 @@ export default function HomePage() {
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Link
-                href="/catalogo"
+                href="/catalog"
                 className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
               >
                 Ver Colección
                 <ArrowRight className="size-4" />
               </Link>
               <Link
-                href="/puntos-bambu"
+                href="/bamboo-points"
                 className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-6 py-3 text-sm font-semibold text-foreground transition-colors hover:border-primary hover:text-primary"
               >
                 Club Puntos Bambú
