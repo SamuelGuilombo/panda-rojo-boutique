@@ -18,11 +18,11 @@ export const site = {
 
 export const navLinks = [
   { href: "/", label: "Inicio" },
-  { href: "/catalogo", label: "Catálogo Completo" },
-  { href: "/puntos-bambu", label: "Puntos Bambú" },
-  { href: "/nosotros", label: "Nosotros" },
+  { href: "/catalog", label: "Catálogo Completo" },
+  { href: "/bamboo-points", label: "Puntos Bambú" },
+  { href: "/about", label: "Nosotros" },
   { href: "/faq", label: "Preguntas Frecuentes" },
-  { href: "/contacto", label: "Contacto" },
+  { href: "/contact", label: "Contacto" },
 ] as const
 
 export function whatsappLink(message: string): string {
