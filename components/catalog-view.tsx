@@ -1,8 +1,9 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { AnimatePresence, motion } from "motion/react"
-import { categories, products, type CategoryId } from "@/data/products"
+import { supabase } from "@/lib/supabase"
+import { categories, type CategoryId } from "@/data/products"
 import { ProductCard } from "@/components/product-card"
 import { ProductModal } from "@/components/product-modal"
 import { cn } from "@/lib/utils"
@@ -11,9 +12,46 @@ import type { Product } from "@/data/products"
 type Tab = "todos" | CategoryId
 
 export function CatalogView() {
+  const [products, setProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState<boolean>(true)
   const [tab, setTab] = useState<Tab>("todos")
   const [sub, setSub] = useState<string | null>(null)
   const [selected, setSelected] = useState<Product | null>(null)
+
+  // Cargar productos desde Supabase al ingresar a la vista
+  useEffect(() => {
+    fetchCatalogProducts()
+  }, [])
+
+  const fetchCatalogProducts = async () => {
+    setLoading(true)
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .order("created_at", { ascending: false })
+
+    if (!error && data) {
+      const formattedProducts: Product[] = data.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        price: Number(item.price),
+        costPrice: Number(item.cost_price),
+        category: item.category,
+        subcategory: item.subcategory,
+        origin: item.origin,
+        images: item.images,
+        description: item.description,
+        sizes: item.sizes,
+        colors: item.colors,
+        bestSeller: item.best_seller,
+        stockBySizes: item.stock_by_sizes,
+        totalStock: item.total_stock,
+        createdAt: item.created_at,
+      }))
+      setProducts(formattedProducts)
+    }
+    setLoading(false)
+  }
 
   const activeCategory = categories.find((c) => c.id === tab)
 
@@ -23,7 +61,7 @@ export function CatalogView() {
       if (sub && p.subcategory !== sub) return false
       return true
     })
-  }, [tab, sub])
+  }, [products, tab, sub])
 
   function selectTab(next: Tab) {
     setTab(next)
@@ -100,13 +138,16 @@ export function CatalogView() {
       </AnimatePresence>
 
       <p className="mt-5 text-sm text-muted-foreground">
-        {filtered.length}{" "}
-        {filtered.length === 1 ? "producto" : "productos"}
+        {loading ? "Cargando catálogo..." : `${filtered.length} ${filtered.length === 1 ? "producto" : "productos"}`}
       </p>
 
       {/* Grid */}
       <div className="mt-4">
-        {filtered.length === 0 ? (
+        {loading ? (
+          <p className="py-16 text-center text-muted-foreground">
+            Cargando prendas desde el servidor...
+          </p>
+        ) : filtered.length === 0 ? (
           <p className="py-16 text-center text-muted-foreground">
             No hay productos en esta selección.
           </p>

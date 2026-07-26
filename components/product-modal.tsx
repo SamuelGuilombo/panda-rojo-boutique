@@ -35,8 +35,8 @@ export function ProductModal({
   useEffect(() => {
     if (product) {
       setActiveImage(0)
-      setSize(product.sizes[0] ?? null)
-      setColor(product.colors[0] ?? null)
+      setSize(product.sizes?.[0] ?? null)
+      setColor(product.colors?.[0] ?? null)
     }
   }, [product])
 
@@ -107,15 +107,15 @@ export function ProductModal({
               <div className="bg-muted p-4">
                 <div className="relative aspect-[3/4] overflow-hidden rounded-xl bg-background">
                   <Image
-                    src={product.images[activeImage] || "/placeholder.svg"}
+                    src={product.images?.[activeImage] || "/placeholder.svg"}
                     alt={product.name}
                     fill
+                    priority
                     sizes="(max-width: 768px) 100vw, 40vw"
                     className="object-cover"
-                    priority
                   />
                 </div>
-                {product.images.length > 1 && (
+                {product.images && product.images.length > 1 && (
                   <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
                     {product.images.map((img, i) => (
                       <button
@@ -161,54 +161,60 @@ export function ProductModal({
                   </p>
                 </div>
 
-                <p className="text-sm leading-relaxed text-muted-foreground">
-                  {product.description}
-                </p>
+                {product.description && (
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    {product.description}
+                  </p>
+                )}
 
                 {/* Seleccionador de Talla */}
-                <div>
-                  <span className="text-sm font-medium text-foreground">Talla</span>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {product.sizes.map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => setSize(s)}
-                        className={cn(
-                          "min-w-10 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                          size === s
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-border bg-background text-foreground hover:border-primary",
-                        )}
-                      >
-                        {s}
-                      </button>
-                    ))}
+                {product.sizes && product.sizes.length > 0 && (
+                  <div>
+                    <span className="text-sm font-medium text-foreground">Talla</span>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {product.sizes.map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setSize(s)}
+                          className={cn(
+                            "min-w-10 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                            size === s
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-border bg-background text-foreground hover:border-primary",
+                          )}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Seleccionador de Color */}
-                <div>
-                  <span className="text-sm font-medium text-foreground">Color</span>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {product.colors.map((c) => (
-                      <button
-                        key={c}
-                        type="button"
-                        onClick={() => setColor(c)}
-                        className={cn(
-                          "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                          color === c
-                            ? "border-primary bg-accent text-primary"
-                            : "border-border bg-background text-foreground hover:border-primary",
-                        )}
-                      >
-                        {color === c && <Check className="size-3.5" />}
-                        {c}
-                      </button>
-                    ))}
+                {product.colors && product.colors.length > 0 && (
+                  <div>
+                    <span className="text-sm font-medium text-foreground">Color</span>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {product.colors.map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => setColor(c)}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                            color === c
+                              ? "border-primary bg-accent text-primary"
+                              : "border-border bg-background text-foreground hover:border-primary",
+                          )}
+                        >
+                          {color === c && <Check className="size-3.5" />}
+                          {c}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Botón de compra por WhatsApp */}
                 <a

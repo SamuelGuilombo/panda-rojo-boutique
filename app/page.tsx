@@ -1,11 +1,57 @@
+"use client"
+
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { ArrowRight, Sparkles, Truck, ShieldCheck } from "lucide-react"
-import { bestSellers } from "@/data/products"
+import { supabase } from "@/lib/supabase"
+import { AdminProduct } from "@/data/products"
 import { ProductGrid } from "@/components/product-grid"
 import { PageTransition, Reveal } from "@/components/motion-primitives"
 
 export default function HomePage() {
+  // Estado para almacenar los productos más vendidos desde Supabase
+  const [bestSellers, setBestSellers] = useState<AdminProduct[]>([])
+  const [loading, setLoading] = useState<boolean>(true)
+
+  // Cargar productos desde Supabase al montar el componente
+  useEffect(() => {
+    fetchBestSellers()
+  }, [])
+
+  const fetchBestSellers = async () => {
+    setLoading(true)
+    
+    // Obtener los productos desde la tabla 'products' de Supabase
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(6)
+
+    if (!error && data) {
+      const formattedProducts: AdminProduct[] = data.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        price: Number(item.price),
+        costPrice: Number(item.cost_price),
+        category: item.category,
+        subcategory: item.subcategory,
+        origin: item.origin,
+        images: item.images,
+        description: item.description,
+        sizes: item.sizes,
+        colors: item.colors,
+        bestSeller: item.best_seller,
+        stockBySizes: item.stock_by_sizes,
+        totalStock: item.total_stock,
+        createdAt: item.created_at,
+      }))
+      setBestSellers(formattedProducts)
+    }
+    setLoading(false)
+  }
+
   return (
     <PageTransition>
       {/* Hero */}
@@ -78,7 +124,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Lo más vendido */}
+      {/* Lo más vendido / Productos en vivo desde Supabase */}
       <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
         <Reveal>
           <div className="flex flex-wrap items-end justify-between gap-3">
@@ -101,7 +147,17 @@ export default function HomePage() {
         </Reveal>
 
         <div className="mt-8">
-          <ProductGrid products={bestSellers.slice(0, 6)} />
+          {loading ? (
+            <div className="py-12 text-center text-sm text-muted-foreground">
+              Cargando prendas desde Supabase...
+            </div>
+          ) : bestSellers.length === 0 ? (
+            <div className="py-12 text-center text-sm text-muted-foreground">
+              No hay productos registrados en el inventario aún.
+            </div>
+          ) : (
+            <ProductGrid products={bestSellers} />
+          )}
         </div>
       </section>
 
