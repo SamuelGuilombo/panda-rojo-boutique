@@ -32,13 +32,37 @@ export function ProductModal({
 
   useEffect(() => setMounted(true), [])
 
+  // Inicialización cuando cambia el producto
   useEffect(() => {
     if (product) {
       setActiveImage(0)
-      setSize(product.sizes[0] ?? null)
-      setColor(product.colors[0] ?? null)
+      const initialSize = product.sizes?.[0] ?? null
+      setSize(initialSize)
+
+      // Obtener colores para la talla inicial seleccionada
+      const availableColors = initialSize && product.colorsBySizes?.[initialSize]
+        ? product.colorsBySizes[initialSize]
+        : product.colors ?? []
+
+      setColor(availableColors[0] ?? null)
     }
   }, [product])
+
+  // Obtener los colores dinámicamente según la talla actualmente seleccionada
+  const availableColors = size && product?.colorsBySizes?.[size]
+    ? product.colorsBySizes[size]
+    : product?.colors ?? []
+
+  // EFECTO CLAVE: Ajustar el color de forma dinámica cuando el cliente cambia la talla
+  useEffect(() => {
+    if (availableColors.length > 0) {
+      if (!color || !availableColors.includes(color)) {
+        setColor(availableColors[0])
+      }
+    } else {
+      setColor(null)
+    }
+  }, [size, availableColors, color])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -166,49 +190,55 @@ export function ProductModal({
                 </p>
 
                 {/* Seleccionador de Talla */}
-                <div>
-                  <span className="text-sm font-medium text-foreground">Talla</span>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {product.sizes.map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => setSize(s)}
-                        className={cn(
-                          "min-w-10 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                          size === s
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-border bg-background text-foreground hover:border-primary",
-                        )}
-                      >
-                        {s}
-                      </button>
-                    ))}
+                {product.sizes && product.sizes.length > 0 && (
+                  <div>
+                    <span className="text-sm font-medium text-foreground">Talla</span>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {product.sizes.map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setSize(s)}
+                          className={cn(
+                            "min-w-10 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                            size === s
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-border bg-background text-foreground hover:border-primary",
+                          )}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
-                {/* Seleccionador de Color */}
-                <div>
-                  <span className="text-sm font-medium text-foreground">Color</span>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {product.colors.map((c) => (
-                      <button
-                        key={c}
-                        type="button"
-                        onClick={() => setColor(c)}
-                        className={cn(
-                          "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                          color === c
-                            ? "border-primary bg-accent text-primary"
-                            : "border-border bg-background text-foreground hover:border-primary",
-                        )}
-                      >
-                        {color === c && <Check className="size-3.5" />}
-                        {c}
-                      </button>
-                    ))}
+                {/* Seleccionador de Color (FILTRADO POR TALLA) */}
+                {availableColors.length > 0 && (
+                  <div>
+                    <span className="text-sm font-medium text-foreground">
+                      Color {size ? `para Talla ${size}` : ""}
+                    </span>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {availableColors.map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => setColor(c)}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                            color === c
+                              ? "border-primary bg-accent text-primary"
+                              : "border-border bg-background text-foreground hover:border-primary",
+                          )}
+                        >
+                          {color === c && <Check className="size-3.5" />}
+                          {c}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Botón de compra por WhatsApp */}
                 <a
