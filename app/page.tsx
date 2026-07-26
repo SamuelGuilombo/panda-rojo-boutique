@@ -1,11 +1,23 @@
+"use client"
+
+import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowRight, Sparkles, Truck, ShieldCheck } from "lucide-react"
-import { bestSellers } from "@/data/products"
-import { ProductGrid } from "@/components/product-grid"
+import { ArrowRight, Sparkles, Truck, ShieldCheck, Loader2 } from "lucide-react"
+import { useProducts } from "@/hooks/useProducts"
+import { ProductCard } from "@/components/product-card"
+import { ProductModal } from "@/components/product-modal"
 import { PageTransition, Reveal } from "@/components/motion-primitives"
+import type { Product } from "@/data/products"
 
 export default function HomePage() {
+  const { products, loading } = useProducts()
+  const [selected, setSelected] = useState<Product | null>(null)
+
+  const featuredProducts = products.filter((p) => p.bestSeller).length > 0
+    ? products.filter((p) => p.bestSeller).slice(0, 6)
+    : products.slice(0, 6)
+
   return (
     <PageTransition>
       {/* Hero */}
@@ -101,7 +113,22 @@ export default function HomePage() {
         </Reveal>
 
         <div className="mt-8">
-          <ProductGrid products={bestSellers.slice(0, 6)} />
+          {loading ? (
+            <div className="flex justify-center items-center py-20 text-muted-foreground gap-2">
+              <Loader2 className="size-5 animate-spin" />
+              <span className="text-sm">Cargando destacados...</span>
+            </div>
+          ) : featuredProducts.length === 0 ? (
+            <p className="py-12 text-center text-sm text-muted-foreground">
+              No hay productos destacados por el momento.
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              {featuredProducts.map((product) => (
+                <ProductCard key={product.id} product={product} onSelect={setSelected} />
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -153,6 +180,8 @@ export default function HomePage() {
           </Link>
         </div>
       </section>
+
+      <ProductModal product={selected} onClose={() => setSelected(null)} />
     </PageTransition>
   )
 }

@@ -2,15 +2,18 @@
 
 import { useMemo, useState } from "react"
 import { AnimatePresence, motion } from "motion/react"
-import { categories, products, type CategoryId } from "@/data/products"
+import { categories, type CategoryId } from "@/data/products"
+import { useProducts } from "@/hooks/useProducts"
 import { ProductCard } from "@/components/product-card"
 import { ProductModal } from "@/components/product-modal"
 import { cn } from "@/lib/utils"
 import type { Product } from "@/data/products"
+import { Loader2 } from "lucide-react"
 
 type Tab = "todos" | CategoryId
 
 export function CatalogView() {
+  const { products, loading, error } = useProducts()
   const [tab, setTab] = useState<Tab>("todos")
   const [sub, setSub] = useState<string | null>(null)
   const [selected, setSelected] = useState<Product | null>(null)
@@ -23,7 +26,7 @@ export function CatalogView() {
       if (sub && p.subcategory !== sub) return false
       return true
     })
-  }, [tab, sub])
+  }, [products, tab, sub])
 
   function selectTab(next: Tab) {
     setTab(next)
@@ -99,15 +102,23 @@ export function CatalogView() {
         )}
       </AnimatePresence>
 
-      <p className="mt-5 text-sm text-muted-foreground">
-        {filtered.length}{" "}
-        {filtered.length === 1 ? "producto" : "productos"}
-      </p>
+      <div className="mt-5 flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          {loading ? "Cargando..." : `${filtered.length} ${filtered.length === 1 ? "producto" : "productos"}`}
+        </p>
+      </div>
 
-      {/* Grid */}
+      {/* Grid y Estados */}
       <div className="mt-4">
-        {filtered.length === 0 ? (
-          <p className="py-16 text-center text-muted-foreground">
+        {loading ? (
+          <div className="flex justify-center items-center py-20 text-muted-foreground gap-2">
+            <Loader2 className="size-5 animate-spin" />
+            <span className="text-sm">Cargando catálogo...</span>
+          </div>
+        ) : error ? (
+          <p className="py-16 text-center text-rose-500 text-sm">{error}</p>
+        ) : filtered.length === 0 ? (
+          <p className="py-16 text-center text-muted-foreground text-sm">
             No hay productos en esta selección.
           </p>
         ) : (
