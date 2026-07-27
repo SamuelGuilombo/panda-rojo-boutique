@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { getCustomerPoints, CustomerPointsSummary } from "@/services/pointsService"
+import { getPointsByPhone, CustomerPointsSummary } from "@/services/pointsService"
 import { Search, Award, ArrowUpRight, ArrowDownLeft, History, Loader2, Sparkles, ShoppingBag } from "lucide-react"
 
 export default function PuntosPage() {
