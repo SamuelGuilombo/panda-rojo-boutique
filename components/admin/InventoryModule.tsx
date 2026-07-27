@@ -7,33 +7,44 @@ import {
   updateProduct,
   deleteProduct,
   uploadProductImages,
+  AdminProduct,
 } from "@/services/productService"
-import { categories, formatCOP, type AdminProduct, type CategoryId } from "@/data/products"
-import { Trash2, Edit, Image as ImageIcon, Loader2, AlertCircle, X, Package, Plus } from "lucide-react"
+import { categories, formatCOP, type CategoryId } from "@/data/products"
+import { CustomerCheckoutModal } from "@/components/admin/CustomerCheckoutModal"
+import { Trash2, Edit, Image as ImageIcon, Loader2, AlertCircle, X, Package, Plus, RefreshCw, ShoppingCart } from "lucide-react"
 
-// Estructura de Color con su Stock individual
 interface ColorStock {
   color: string
-  stockInput: string // Se maneja como string para permitir limpiar el input ("")
+  stockInput: string
 }
 
-// Estructura de Talla
 interface SizeVariantConfig {
   size: string
-  stockInput: string // Stock base de la talla si NO se especifican colores
+  stockInput: string
   colorInput: string
   colors: ColorStock[]
 }
 
-export function InventoryModule() {
-  const [products, setProducts] = useState<AdminProduct[]>([])
-  const [loading, setLoading] = useState(true)
+interface InventoryModuleProps {
+  products?: AdminProduct[]
+  loading?: boolean
+  onRefresh?: () => Promise<void>
+}
+
+export function InventoryModule({
+  products: initialProducts,
+  loading: initialLoading,
+  onRefresh,
+}: InventoryModuleProps) {
+  const [internalProducts, setInternalProducts] = useState<AdminProduct[]>([])
+  const [internalLoading, setInternalLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Estado para Edición
+  const products = initialProducts ?? internalProducts
+  const loading = initialLoading ?? internalLoading
+
   const [editingId, setEditingId] = useState<string | null>(null)
 
-  // Campos básicos
   const [name, setName] = useState("")
   const [price, setPrice] = useState("")
   const [costPrice, setCostPrice] = useState("")
@@ -42,42 +53,50 @@ export function InventoryModule() {
   const [origin, setOrigin] = useState<"Nacional" | "Importado">("Nacional")
   const [description, setDescription] = useState("")
 
-  // Stock simplificado para Pines y Accesorios
   const [pinStockInput, setPinStockInput] = useState("1")
 
-  // Tallas e Inventario Jerárquico para Ropa
   const [sizesInput, setSizesInput] = useState("")
   const [variants, setVariants] = useState<SizeVariantConfig[]>([])
 
-  // Imágenes
   const [existingImages, setExistingImages] = useState<string[]>([])
   const [imageFiles, setImageFiles] = useState<File[]>([])
   const [uploadingImages, setUploadingImages] = useState(false)
   const [saving, setSaving] = useState(false)
 
+  // Estado para ventas rápida desde inventario / checkout
+  const [checkoutModalOpen, setCheckoutModalOpen] = useState(false)
+  const [saleTotalAmount, setSaleTotalAmount] = useState(0)
+
   const loadInventory = async () => {
-    setLoading(true)
+    if (onRefresh) {
+      await onRefresh()
+      return
+    }
+
+    setInternalLoading(true)
     setError(null)
     try {
       const data = await fetchProducts()
-      setProducts(data)
+      setInternalProducts(data)
     } catch (err: any) {
       console.error("Error al cargar inventario:", err)
       setError("No se pudieron cargar los productos desde la base de datos.")
     } finally {
-      setLoading(false)
+      setInternalLoading(false)
     }
   }
 
   useEffect(() => {
-    loadInventory()
+    if (!initialProducts) {
+      loadInventory()
+    }
   }, [])
 
   const currentCategoryObj = categories.find((c) => c.id === selectedCategory)
   const availableSubcategories = currentCategoryObj?.subcategories || []
-  const isPinOrAccessory = selectedCategory === "pines" || selectedCategory === "accesorios"
+  
+  const isPinOrAccessory = (selectedCategory as string) === "pines" || (selectedCategory as string) === "accesorios"
 
-  // Gestor de Tallas
   const handleSizesInputChange = (val: string) => {
     setSizesInput(val)
 
@@ -106,14 +125,13 @@ export function InventoryModule() {
     const cat = categories.find((c) => c.id === catId)
     setSelectedSubcategory(cat?.subcategories[0] || "")
 
-    if (catId === "pines" || catId === "accesorios") {
+    if ((catId as string) === "pines" || (catId as string) === "accesorios") {
       setSizesInput("")
       setVariants([])
       setPinStockInput("1")
     }
   }
 
-  // Stock base por talla (cuando no hay colores especificados)
   const handleSizeStockChange = (variantIndex: number, value: string) => {
     setVariants((prev) => {
       const updated = [...prev]
@@ -122,7 +140,6 @@ export function InventoryModule() {
     })
   }
 
-  // Agregar un color a una talla específica
   const handleAddColorToVariant = (variantIndex: number) => {
     const colorName = variants[variantIndex].colorInput.trim()
     if (!colorName) return
@@ -143,7 +160,6 @@ export function InventoryModule() {
     })
   }
 
-  // Modificar stock de un color en una talla
   const handleColorStockChange = (
     variantIndex: number,
     colorIndex: number,
@@ -156,7 +172,6 @@ export function InventoryModule() {
     })
   }
 
-  // Eliminar un color de una talla
   const handleRemoveColorFromVariant = (variantIndex: number, colorIndex: number) => {
     setVariants((prev) => {
       const updated = [...prev]
@@ -197,7 +212,6 @@ export function InventoryModule() {
     setImageFiles([])
   }
 
-  // CARGAR PRODUCTO EN EL FORMULARIO (EDITAR)
   const handleEditProduct = (product: AdminProduct) => {
     setEditingId(product.id || null)
     setName(product.name)
@@ -210,7 +224,7 @@ export function InventoryModule() {
     setExistingImages(product.images || [])
     setImageFiles([])
 
-    const isPin = product.category === "pines" || product.category === "accesorios"
+    const isPin = (product.category as string) === "pines" || (product.category as string) === "accesorios"
 
     if (isPin) {
       setPinStockInput(product.totalStock.toString())
@@ -227,11 +241,16 @@ export function InventoryModule() {
         let colorStockList: ColorStock[] = []
 
         if (sizeColors.length > 0) {
-          const defaultQty = Math.max(1, Math.floor(totalStockForSize / sizeColors.length))
-          colorStockList = sizeColors.map((col) => ({
-            color: col,
-            stockInput: defaultQty.toString(),
-          }))
+          colorStockList = sizeColors.map((col) => {
+            const specificKey = `${size}-${col}`
+            const qty = product.stockBySizesAndColors?.[specificKey] ?? 
+              Math.max(1, Math.floor(totalStockForSize / sizeColors.length))
+            
+            return {
+              color: col,
+              stockInput: qty.toString(),
+            }
+          })
         }
 
         return {
@@ -248,7 +267,6 @@ export function InventoryModule() {
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
-  // GUARDAR / ACTUALIZAR PRODUCTO
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim() || !price) {
@@ -275,6 +293,7 @@ export function InventoryModule() {
 
       const stockBySizes: Record<string, number> = {}
       const colorsBySizes: Record<string, string[]> = {}
+      const stockBySizesAndColors: Record<string, number> = {}
       let allColorsSet = new Set<string>()
       let totalStock = 0
       let finalSizes: string[] = []
@@ -283,6 +302,7 @@ export function InventoryModule() {
         const pinQty = Math.max(0, Number(pinStockInput) || 0)
         finalSizes = ["Única"]
         stockBySizes["Única"] = pinQty
+        stockBySizesAndColors["Única-Único"] = pinQty
         totalStock = pinQty
       } else {
         finalSizes = variants.map((v) => v.size)
@@ -298,10 +318,12 @@ export function InventoryModule() {
               if (c.color) {
                 sizeColorsList.push(c.color)
                 allColorsSet.add(c.color)
+                stockBySizesAndColors[`${v.size}-${c.color}`] = qty
               }
             })
           } else {
             sizeTotalStock = Math.max(0, Number(v.stockInput) || 0)
+            stockBySizesAndColors[`${v.size}-Único`] = sizeTotalStock
           }
 
           stockBySizes[v.size] = sizeTotalStock
@@ -323,6 +345,7 @@ export function InventoryModule() {
         colors: Array.from(allColorsSet),
         stockBySizes,
         colorsBySizes,
+        stockBySizesAndColors,
         totalStock,
         bestSeller: false,
       }
@@ -348,17 +371,34 @@ export function InventoryModule() {
     if (!confirm("¿Estás seguro de eliminar este producto?")) return
     try {
       await deleteProduct(id)
-      setProducts((prev) => prev.filter((p) => p.id !== id))
       if (editingId === id) resetForm()
+      await loadInventory()
     } catch (err) {
       console.error("Error al eliminar producto:", err)
       alert("No se pudo eliminar el producto.")
     }
   }
 
+  // Abrir venta rápida para un producto específico
+  const handleQuickSale = (product: AdminProduct) => {
+    setSaleTotalAmount(product.price)
+    setCheckoutModalOpen(true)
+  }
+
+  const handleConfirmCheckout = (checkoutData: {
+    finalAmount: number
+    discount: number
+    customerId?: string
+    customerName?: string
+    paymentMethod: string
+  }) => {
+    console.log("Venta confirmada exitosamente:", checkoutData)
+    setCheckoutModalOpen(false)
+    alert(`¡Venta registrada! Total cobrado: ${formatCOP(checkoutData.finalAmount)} (${checkoutData.paymentMethod})`)
+  }
+
   return (
     <div className="space-y-6 text-slate-900">
-      
       {/* HEADER COMPACTO */}
       <div className="bg-slate-50 border-l-4 border-slate-900 border-y border-r border-slate-200 p-4 rounded-xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div className="flex items-center gap-3">
@@ -374,6 +414,13 @@ export function InventoryModule() {
             </p>
           </div>
         </div>
+        <button
+          onClick={loadInventory}
+          className="flex items-center gap-1.5 self-start sm:self-center px-3 py-1.5 text-xs font-semibold bg-white border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors shadow-2xs"
+        >
+          <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
+          <span>Actualizar</span>
+        </button>
       </div>
 
       {error && (
@@ -385,7 +432,6 @@ export function InventoryModule() {
 
       {/* Grid Layout (5 Col Formulario / 7 Col Tabla) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        
         {/* FORMULARIO IZQUIERDA */}
         <div className="lg:col-span-5 bg-white border border-slate-300 rounded-2xl p-5 shadow-sm space-y-4">
           <div className="border-b border-slate-200 pb-3 flex items-center justify-between">
@@ -482,7 +528,6 @@ export function InventoryModule() {
               </select>
             </div>
 
-            {/* SECCIÓN DE INVENTARIO SÓLO PARA PINES Y ACCESORIOS */}
             {isPinOrAccessory ? (
               <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl">
                 <label className="block text-xs font-bold text-slate-800 mb-1">
@@ -498,7 +543,6 @@ export function InventoryModule() {
                 />
               </div>
             ) : (
-              /* SECCIÓN PARA ROPA Y PRENDAS CON TALLAS/COLORES */
               <div className="space-y-3 bg-slate-50 border border-slate-200 p-3 rounded-xl">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-bold text-slate-800">
@@ -551,7 +595,6 @@ export function InventoryModule() {
                             </span>
                           </div>
 
-                          {/* SI NO TIENE COLORES, EDITA EL STOCK BASE DE LA TALLA DIRECTAMENTE */}
                           {!hasColors && (
                             <div className="flex items-center justify-between bg-slate-50 p-2 rounded-lg border border-slate-200">
                               <span className="text-xs font-medium text-slate-700">Unidades de esta talla:</span>
@@ -565,7 +608,6 @@ export function InventoryModule() {
                             </div>
                           )}
 
-                          {/* Añadir color opcional */}
                           <div className="flex gap-1.5">
                             <input
                               type="text"
@@ -596,7 +638,6 @@ export function InventoryModule() {
                             </button>
                           </div>
 
-                          {/* Lista de Colores Agregados */}
                           {hasColors && (
                             <div className="space-y-1.5 pt-1">
                               {variant.colors.map((c, cIdx) => (
@@ -813,6 +854,13 @@ export function InventoryModule() {
                         <td className="py-2.5 px-3 text-right">
                           <div className="flex items-center justify-end gap-1">
                             <button
+                              onClick={() => handleQuickSale(product)}
+                              className="p-1.5 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg transition-colors"
+                              title="Registrar venta directa"
+                            >
+                              <ShoppingCart size={15} />
+                            </button>
+                            <button
                               onClick={() => handleEditProduct(product)}
                               className={`p-1.5 rounded-lg transition-colors ${
                                 isBeingEdited
@@ -840,8 +888,16 @@ export function InventoryModule() {
             </div>
           )}
         </div>
-
       </div>
+
+      {/* Modal de Checkout / Cobro */}
+      {checkoutModalOpen && (
+        <CustomerCheckoutModal
+          totalAmount={saleTotalAmount}
+          onClose={() => setCheckoutModalOpen(false)}
+          onConfirm={handleConfirmCheckout}
+        />
+      )}
     </div>
   )
 }

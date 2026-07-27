@@ -5,10 +5,30 @@ import { useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import { AnimatePresence, motion } from "motion/react"
 import { X, Check } from "lucide-react"
-import { formatCOP, type Product } from "@/data/products"
+import { formatCOP } from "@/data/products"
 import { OriginBadge } from "@/components/origin-badge"
 import { whatsappLink, site } from "@/lib/site"
 import { cn } from "@/lib/utils"
+
+export interface ExtendedProduct {
+  id: string
+  name: string
+  price: number
+  description?: string
+  subcategory?: string
+  origin?: string
+  images: string[]
+  sizes?: string[]
+  colors?: string[]
+  stockBySizes?: Record<string, number>
+  stock_by_sizes?: Record<string, number>
+  colorsBySizes?: Record<string, string[]>
+  colors_by_sizes?: Record<string, string[]>
+  stockBySizesAndColors?: Record<string, number>
+  stock_by_sizes_and_colors?: Record<string, number>
+  totalStock?: number
+  total_stock?: number
+}
 
 function WhatsappIcon({ className }: { className?: string }) {
   return (
@@ -22,7 +42,7 @@ export function ProductModal({
   product,
   onClose,
 }: {
-  product: Product | null
+  product: ExtendedProduct | null
   onClose: () => void
 }) {
   const [mounted, setMounted] = useState(false)
@@ -32,37 +52,60 @@ export function ProductModal({
 
   useEffect(() => setMounted(true), [])
 
-  // Inicialización cuando cambia el producto
+  const colorsBySizesMap = product?.colorsBySizes || product?.colors_by_sizes || {}
+  const stockBySizesAndColorsMap = product?.stockBySizesAndColors || product?.stock_by_sizes_and_colors || {}
+  const stockBySizesMap = product?.stockBySizes || product?.stock_by_sizes || {}
+
+  const getStockForColor = (sz: string | null, clr: string): number => {
+    if (!sz) return 0
+    const key = `${sz}-${clr}`
+    if (stockBySizesAndColorsMap[key] !== undefined) {
+      return Number(stockBySizesAndColorsMap[key])
+    }
+    if (stockBySizesMap[sz] !== undefined) {
+      return Number(stockBySizesMap[sz])
+    }
+    return 0
+  }
+
+  // Función para calcular si una talla tiene stock en general sumando sus colores
+  const getStockForSize = (sz: string): number => {
+    const availableColors = colorsBySizesMap[sz] || product?.colors || []
+    if (availableColors.length > 0 && availableColors[0] !== "Único" && Object.keys(stockBySizesAndColorsMap).length > 0) {
+      return availableColors.reduce((acc, clr) => acc + getStockForColor(sz, clr), 0)
+    }
+    return stockBySizesMap[sz] ?? product?.totalStock ?? 0
+  }
+
   useEffect(() => {
     if (product) {
       setActiveImage(0)
-      const initialSize = product.sizes?.[0] ?? null
-      setSize(initialSize)
+      const firstValidSize = product.sizes?.find((s) => getStockForSize(s) > 0) ?? product.sizes?.[0] ?? null
+      setSize(firstValidSize)
 
-      // Obtener colores para la talla inicial seleccionada
-      const availableColors = initialSize && product.colorsBySizes?.[initialSize]
-        ? product.colorsBySizes[initialSize]
+      const availableColors = firstValidSize && colorsBySizesMap[firstValidSize]
+        ? colorsBySizesMap[firstValidSize]
         : product.colors ?? []
 
-      setColor(availableColors[0] ?? null)
+      const firstValidColor = availableColors.find((c) => getStockForColor(firstValidSize, c) > 0) ?? availableColors[0] ?? null
+      setColor(firstValidColor)
     }
   }, [product])
 
-  // Obtener los colores dinámicamente según la talla actualmente seleccionada
-  const availableColors = size && product?.colorsBySizes?.[size]
-    ? product.colorsBySizes[size]
+  const availableColors = size && colorsBySizesMap[size]
+    ? colorsBySizesMap[size]
     : product?.colors ?? []
 
-  // EFECTO CLAVE: Ajustar el color de forma dinámica cuando el cliente cambia la talla
   useEffect(() => {
     if (availableColors.length > 0) {
-      if (!color || !availableColors.includes(color)) {
-        setColor(availableColors[0])
+      if (!color || !availableColors.includes(color) || getStockForColor(size, color) <= 0) {
+        const firstAvailable = availableColors.find((c) => getStockForColor(size, c) > 0)
+        setColor(firstAvailable || availableColors[0])
       }
     } else {
       setColor(null)
     }
-  }, [size, availableColors, color])
+  }, [size])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -79,6 +122,9 @@ export function ProductModal({
   }, [product, onClose])
 
   if (!mounted) return null
+
+  const selectedColorStock = color ? getStockForColor(size, color) : 0
+  const isFullyOutOStock = selectedColorStock <= 0
 
   const message = product
     ? `¡Hola Panda Rojo Boutique! Estoy interesad@ en: *${product.name}* (${formatCOP(
@@ -97,14 +143,12 @@ export function ProductModal({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
         >
-          {/* Backdrop con click para cerrar */}
           <div
             className="absolute inset-0 bg-foreground/50 backdrop-blur-sm"
             onClick={onClose}
             aria-hidden="true"
           />
 
-          {/* Modal Container */}
           <motion.div
             key="modal-content"
             role="dialog"
@@ -116,7 +160,6 @@ export function ProductModal({
             transition={{ type: "spring", stiffness: 300, damping: 28 }}
             className="relative z-10 flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl bg-card shadow-xl sm:rounded-2xl"
           >
-            {/* Botón Cerrar */}
             <button
               type="button"
               onClick={onClose}
@@ -127,7 +170,6 @@ export function ProductModal({
             </button>
 
             <div className="grid gap-0 overflow-y-auto md:grid-cols-2">
-              {/* Galería de imágenes */}
               <div className="bg-muted p-4">
                 <div className="relative aspect-[3/4] overflow-hidden rounded-xl bg-background">
                   <Image
@@ -167,11 +209,10 @@ export function ProductModal({
                 )}
               </div>
 
-              {/* Detalle del producto */}
               <div className="flex flex-col gap-4 p-5 sm:p-6">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    {product.subcategory}
+                    {product.subcategory || "General"}
                   </span>
                   {product.origin && <OriginBadge origin={product.origin} />}
                 </div>
@@ -185,70 +226,96 @@ export function ProductModal({
                   </p>
                 </div>
 
-                <p className="text-sm leading-relaxed text-muted-foreground">
-                  {product.description}
-                </p>
+                {product.description && (
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    {product.description}
+                  </p>
+                )}
 
                 {/* Seleccionador de Talla */}
                 {product.sizes && product.sizes.length > 0 && (
                   <div>
                     <span className="text-sm font-medium text-foreground">Talla</span>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {product.sizes.map((s) => (
-                        <button
-                          key={s}
-                          type="button"
-                          onClick={() => setSize(s)}
-                          className={cn(
-                            "min-w-10 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                            size === s
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "border-border bg-background text-foreground hover:border-primary",
-                          )}
-                        >
-                          {s}
-                        </button>
-                      ))}
+                      {product.sizes.map((s) => {
+                        const sizeStock = getStockForSize(s)
+                        const isSizeDisabled = sizeStock <= 0
+                        return (
+                          <button
+                            key={s}
+                            type="button"
+                            disabled={isSizeDisabled}
+                            onClick={() => setSize(s)}
+                            className={cn(
+                              "min-w-10 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                              size === s
+                                ? "border-primary bg-primary text-primary-foreground"
+                                : "border-border bg-background text-foreground hover:border-primary",
+                              isSizeDisabled && "opacity-40 cursor-not-allowed line-through bg-muted/50"
+                            )}
+                          >
+                            {s}
+                          </button>
+                        )
+                      })}
                     </div>
                   </div>
                 )}
 
-                {/* Seleccionador de Color (FILTRADO POR TALLA) */}
+                {/* Seleccionador de Color (LIMPIO, SIN MOSTRAR NÚMEROS DE STOCK) */}
                 {availableColors.length > 0 && (
                   <div>
-                    <span className="text-sm font-medium text-foreground">
-                      Color {size ? `para Talla ${size}` : ""}
-                    </span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-foreground">
+                        Color {size ? `en talla ${size}` : ""}
+                      </span>
+                    </div>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {availableColors.map((c) => (
-                        <button
-                          key={c}
-                          type="button"
-                          onClick={() => setColor(c)}
-                          className={cn(
-                            "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                            color === c
-                              ? "border-primary bg-accent text-primary"
-                              : "border-border bg-background text-foreground hover:border-primary",
-                          )}
-                        >
-                          {color === c && <Check className="size-3.5" />}
-                          {c}
-                        </button>
-                      ))}
+                      {availableColors.map((c) => {
+                        const colorStock = getStockForColor(size, c)
+                        const isSelected = color === c
+                        const isDisabled = colorStock <= 0
+
+                        return (
+                          <button
+                            key={c}
+                            type="button"
+                            disabled={isDisabled}
+                            onClick={() => setColor(c)}
+                            className={cn(
+                              "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                              isSelected
+                                ? "border-primary bg-accent text-primary"
+                                : "border-border bg-background text-foreground hover:border-primary",
+                              isDisabled && "opacity-40 cursor-not-allowed hover:border-border line-through bg-muted/50"
+                            )}
+                          >
+                            {isSelected && <Check className="size-3.5" />}
+                            {c.toUpperCase()}
+                          </button>
+                        )
+                      })}
                     </div>
                   </div>
                 )}
 
                 {/* Botón de compra por WhatsApp */}
                 <a
-                  href={whatsappLink(message)}
-                  target="_blank"
+                  href={isFullyOutOStock ? "#" : whatsappLink(message)}
+                  target={isFullyOutOStock ? "_self" : "_blank"}
                   rel="noopener noreferrer"
-                  className="mt-2 inline-flex items-center justify-center gap-2 rounded-lg bg-[#25D366] px-5 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#25D366] focus-visible:ring-offset-2"
+                  onClick={(e) => {
+                    if (isFullyOutOStock) e.preventDefault()
+                  }}
+                  className={cn(
+                    "mt-2 inline-flex items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold text-white transition-opacity",
+                    isFullyOutOStock
+                      ? "bg-muted text-muted-foreground cursor-not-allowed"
+                      : "bg-[#25D366] hover:opacity-90"
+                  )}
                 >
                   <WhatsappIcon className="size-5" />
-                  Comprar por WhatsApp
+                  {isFullyOutOStock ? "Combinación Agotada" : "Comprar por WhatsApp"}
                 </a>
                 <p className="text-center text-xs text-muted-foreground">
                   Te atendemos al {site.phone}

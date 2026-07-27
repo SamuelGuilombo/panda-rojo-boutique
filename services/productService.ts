@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase"
 
-const BUCKET_NAME = "products" // o "product-images" según tu bucket
+const BUCKET_NAME = "products"
 
 export interface AdminProduct {
   id?: string
@@ -16,9 +16,54 @@ export interface AdminProduct {
   colors: string[]
   stockBySizes: Record<string, number>
   colorsBySizes?: Record<string, string[]>
+  stockBySizesAndColors?: Record<string, number>
   totalStock: number
   bestSeller?: boolean
   createdAt?: string
+}
+
+export interface Product {
+  id: string
+  name: string
+  price: number
+  stock: number
+}
+
+export interface SaleItem {
+  product_id: string
+  product_name: string
+  quantity: number
+  size?: string
+  selectedColor?: string
+  price: number
+}
+
+export interface CompleteSaleData {
+  items: SaleItem[]
+  finalAmount: number
+  discount: number
+  paymentMethod: string
+  customerId?: number | string
+  customerName?: string
+}
+
+export async function getProducts(): Promise<Product[]> {
+  const { data, error } = await supabase
+    .from("products")
+    .select("id, name, price, total_stock")
+    .order("name", { ascending: true })
+
+  if (error) {
+    console.error("Error al obtener productos para POS:", error)
+    return []
+  }
+
+  return (data || []).map((item: any) => ({
+    id: item.id,
+    name: item.name,
+    price: item.price,
+    stock: item.total_stock ?? 0,
+  }))
 }
 
 export async function fetchProducts(): Promise<AdminProduct[]> {
@@ -43,6 +88,7 @@ export async function fetchProducts(): Promise<AdminProduct[]> {
     colors: item.colors ?? [],
     stockBySizes: item.stock_by_sizes ?? {},
     colorsBySizes: item.colors_by_sizes ?? {},
+    stockBySizesAndColors: item.stock_by_sizes_and_colors ?? {},
     totalStock: item.total_stock ?? 0,
     bestSeller: item.best_seller ?? false,
     createdAt: item.created_at,
@@ -63,6 +109,7 @@ export async function createProduct(productData: Omit<AdminProduct, "id" | "crea
     colors: productData.colors,
     stock_by_sizes: productData.stockBySizes,
     colors_by_sizes: productData.colorsBySizes || {},
+    stock_by_sizes_and_colors: productData.stockBySizesAndColors || {},
     total_stock: productData.totalStock,
     best_seller: productData.bestSeller ?? false,
   }
@@ -94,6 +141,7 @@ export async function updateProduct(id: string, productData: Partial<Omit<AdminP
   if (productData.colors !== undefined) payload.colors = productData.colors
   if (productData.stockBySizes !== undefined) payload.stock_by_sizes = productData.stockBySizes
   if (productData.colorsBySizes !== undefined) payload.colors_by_sizes = productData.colorsBySizes
+  if (productData.stockBySizesAndColors !== undefined) payload.stock_by_sizes_and_colors = productData.stockBySizesAndColors
   if (productData.totalStock !== undefined) payload.total_stock = productData.totalStock
   if (productData.bestSeller !== undefined) payload.best_seller = productData.bestSeller
 
@@ -147,3 +195,145 @@ export async function uploadProductImages(files: File[]): Promise<string[]> {
 
   return uploadedUrls
 }
+
+/**
+ * REGISTRO DE VENTA Y CONEXIÓN COMPLETA A SUPABASE
+ */
+export async function processSale(saleData: CompleteSaleData) {
+  const { items, finalAmount, discount, paymentMethod, customerId, customerName } = saleData
+
+  try {
+    // 0. Asegurar que el cliente exista en la tabla "customers" antes de registrar la venta si se proporciona ID
+    let numericCustomerId: number | null = null
+    if (customerId) {
+      numericCustomerId = Number(customerId)
+      const { error: customerUpsertError } = await supabase
+        .from("customers")
+        .upsert(
+          {
+            id: numericCustomerId,
+            phone: customerId.toString(),
+            name: customerName || "Cliente General",
+          },
+          { onConflict: 'id' }
+        )
+
+      if (customerUpsertError) {
+        console.error("Error al registrar o verificar el cliente automáticamente:", customerUpsertError)
+        throw customerUpsertError
+      }
+    }
+
+    for (const item of items) {
+      // 1. Consultar el producto para obtener su stock actual y variantes
+      const { data: prodData } = await supabase
+        .from("products")
+        .select("total_stock, stock_by_sizes, stock_by_sizes_and_colors, cost_price")
+        .eq("id", item.product_id)
+        .single()
+
+      const costPrice = prodData?.cost_price ?? 0
+      const unitPrice = item.price
+      const totalItemSale = unitPrice * item.quantity
+      const totalItemCost = costPrice * item.quantity
+      const profit = totalItemSale - totalItemCost
+
+      // 2. Registrar la venta en la tabla `sales`
+      const { error: saleError } = await supabase.from("sales").insert({
+        product_id: item.product_id,
+        product_name: item.product_name,
+        quantity: item.quantity,
+        size: item.size || null,
+        sale_price: unitPrice,
+        cost_price: costPrice,
+        profit: profit,
+        discount: discount,
+        payment_method: paymentMethod,
+        customer_id: numericCustomerId,
+        created_at: new Date().toISOString(),
+      })
+
+      if (saleError) {
+        console.error("Error insertando en sales:", saleError)
+        throw saleError
+      }
+
+      // 3. Descontar inventario de manera precisa (Total, Tallas y Combinación Talla-Color)
+      if (prodData) {
+        const currentTotal = prodData.total_stock ?? 0
+        const newTotal = Math.max(0, currentTotal - item.quantity)
+        
+        // Descontar en stock_by_sizes
+        const updatedStockBySizes = { ...(prodData.stock_by_sizes || {}) }
+        if (item.size && updatedStockBySizes[item.size] !== undefined) {
+          updatedStockBySizes[item.size] = Math.max(0, updatedStockBySizes[item.size] - item.quantity)
+        }
+
+        // Descontar en stock_by_sizes_and_colors
+        const updatedStockBySizesAndColors = { ...(prodData.stock_by_sizes_and_colors || {}) }
+        const colorKey = item.selectedColor && item.selectedColor !== "Único" 
+          ? `${item.size}-${item.selectedColor}` 
+          : null
+
+        if (colorKey && updatedStockBySizesAndColors[colorKey] !== undefined) {
+          updatedStockBySizesAndColors[colorKey] = Math.max(0, updatedStockBySizesAndColors[colorKey] - item.quantity)
+        } else if (item.size && updatedStockBySizesAndColors[item.size] !== undefined) {
+          updatedStockBySizesAndColors[item.size] = Math.max(0, updatedStockBySizesAndColors[item.size] - item.quantity)
+        }
+
+        await supabase
+          .from("products")
+          .update({
+            total_stock: newTotal,
+            stock_by_sizes: updatedStockBySizes,
+            stock_by_sizes_and_colors: updatedStockBySizesAndColors,
+          })
+          .eq("id", item.product_id)
+      }
+    }
+
+    // 4. Gestionar cliente y puntos (acumulación y transacciones detalladas)
+    if (numericCustomerId) {
+      const pointsEarned = Math.floor(finalAmount / 1000)
+
+      const { data: existingCustomer } = await supabase
+        .from("customers")
+        .select("id, points, name")
+        .eq("id", numericCustomerId)
+        .single()
+
+      if (existingCustomer) {
+        const newPoints = (existingCustomer.points || 0) + pointsEarned
+        await supabase
+          .from("customers")
+          .update({
+            points: newPoints,
+            name: customerName || existingCustomer.name,
+          })
+          .eq("id", numericCustomerId)
+      }
+
+      if (pointsEarned > 0) {
+        // Se corrige a "EARN" para que coincida con el tipo esperado por point_transactions
+        const { error: txError } = await supabase.from("point_transactions").insert({
+          customer_id: numericCustomerId,
+          points: pointsEarned,
+          type: "EARN",
+          description: `Venta por ${finalAmount.toLocaleString()} COP`,
+          created_at: new Date().toISOString(),
+        })
+
+        if (txError) {
+          console.error("Error al registrar point_transactions:", txError)
+        }
+      }
+    }
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error en processSale:", error)
+    throw error
+  }
+}
+
+export type DbProduct = AdminProduct

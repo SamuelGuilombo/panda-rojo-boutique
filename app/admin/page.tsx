@@ -1,114 +1,96 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useAdminAuth } from "@/hooks/useAdminAuth"
-import { fetchProducts, DbProduct } from "@/services/productService"
-import { AdminLoginForm } from "@/components/admin/AdminLoginForm"
-import { AdminMenu } from "@/components/admin/AdminMenu"
-import { InventoryModule } from "@/components/admin/InventoryModule"
-import { Button } from "@/components/ui/button"
-import { ArrowLeft, RefreshCw, LogOut, Award, ShoppingCart, Settings } from "lucide-react"
+import { useEffect, useState } from "react"
+import Link from "next/link"
+import { fetchProducts } from "@/services/productService"
+import { Package, Award, ShoppingCart, Settings, ArrowRight } from "lucide-react"
 
-type AdminView = "menu" | "inventory" | "bamboo_points" | "orders" | "settings"
-
-export default function AdminPage() {
-  const { isAuthenticated, checkingAuth, logout } = useAdminAuth()
-  const [activeView, setActiveView] = useState<AdminView>("menu")
-  const [products, setProducts] = useState<DbProduct[]>([])
-  const [loadingProducts, setLoadingProducts] = useState(false)
-
-  const loadData = async () => {
-    setLoadingProducts(true)
-    try {
-      const data = await fetchProducts()
-      setProducts(data)
-    } catch (error) {
-      console.error("Error al cargar productos:", error)
-    } finally {
-      setLoadingProducts(false)
-    }
-  }
+export default function AdminDashboardPage() {
+  const [productsCount, setProductsCount] = useState<number>(0)
 
   useEffect(() => {
-    if (isAuthenticated) loadData()
-  }, [isAuthenticated])
+    fetchProducts().then((data) => setProductsCount(data.length)).catch(() => {})
+  }, [])
 
-  if (checkingAuth) {
-    return (
-      <div className="min-h-screen bg-neutral-950 flex items-center justify-center text-xs text-neutral-400">
-        Verificando sesión administrativa...
-      </div>
-    )
-  }
-
-  if (!isAuthenticated) {
-    return <AdminLoginForm onSuccess={loadData} />
-  }
+  const modules = [
+    {
+      title: "Control e Inventario",
+      description: "Registra prendas, asigna imágenes, define precio de costo y venta, gestiona tallas y colores.",
+      href: "/admin/inventory",
+      icon: Package,
+      badge: `${productsCount} productos`,
+      color: "border-emerald-500/30 bg-emerald-500/5 text-emerald-400",
+    },
+    {
+      title: "Puntos Bambú",
+      description: "Administra el sistema de puntos por compras de tus clientes, recompensas e historial.",
+      href: "/admin/points",
+      icon: Award,
+      badge: "Fidelización",
+      color: "border-amber-500/30 bg-amber-500/5 text-amber-400",
+    },
+    {
+      title: "Pedidos y Ventas",
+      description: "Revisa las solicitudes realizadas por clientes por WhatsApp o la plataforma.",
+      href: "/admin/orders",
+      icon: ShoppingCart,
+      badge: "WhatsApp",
+      color: "border-blue-500/30 bg-blue-500/5 text-blue-400",
+    },
+    {
+      title: "Configuración",
+      description: "Ajustes del sistema, parámetros globales y datos del negocio.",
+      href: "/admin/settings",
+      icon: Settings,
+      badge: "Sistema",
+      color: "border-purple-500/30 bg-purple-500/5 text-purple-400",
+    },
+  ]
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100 p-4 sm:p-8">
-      <div className="max-w-7xl mx-auto space-y-8">
-        
-        {/* Encabezado */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-800 pb-5">
-          <div className="flex items-center gap-3">
-            {activeView !== "menu" && (
-              <Button onClick={() => setActiveView("menu")} variant="outline" size="icon" className="border-neutral-800 bg-neutral-900 hover:bg-neutral-800 text-neutral-200">
-                <ArrowLeft className="size-4" />
-              </Button>
-            )}
-            <div>
-              <h1 className="text-2xl font-serif font-bold text-white">Panel Administrativo</h1>
-              <p className="text-xs text-neutral-400 mt-0.5">
-                {activeView === "menu" && "Selecciona un módulo para gestionar tu tienda."}
-                {activeView === "inventory" && "Gestión de prendas, colores, tallas y márgenes."}
-                {activeView === "bamboo_points" && "Gestión del programa de Puntos Bambú."}
-                {activeView === "orders" && "Monitoreo e historial de pedidos."}
-                {activeView === "settings" && "Configuración general."}
-              </p>
-            </div>
-          </div>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-white tracking-tight">Panel Administrativo</h1>
+        <p className="text-xs text-neutral-400 mt-1">
+          Selecciona un módulo para gestionar Panda Rojo Boutique.
+        </p>
+      </div>
 
-          <div className="flex items-center gap-3">
-            {activeView === "inventory" && (
-              <Button onClick={loadData} variant="outline" size="sm" className="border-neutral-800 bg-neutral-900 hover:bg-neutral-800 text-neutral-200">
-                <RefreshCw className="size-4 mr-2" /> Actualizar
-              </Button>
-            )}
-            <Button onClick={logout} variant="outline" size="sm" className="border-rose-900/50 bg-rose-950/30 hover:bg-rose-900/50 text-rose-300">
-              <LogOut className="size-4 mr-2" /> Cerrar Sesión
-            </Button>
-          </div>
-        </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2">
+        {modules.map((mod) => {
+          const Icon = mod.icon
+          return (
+            <Link
+              key={mod.href}
+              href={mod.href}
+              className="group relative flex flex-col justify-between p-6 rounded-2xl bg-neutral-900 border border-neutral-800 hover:border-neutral-700 transition-all hover:shadow-lg"
+            >
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className={`p-3 rounded-xl border ${mod.color}`}>
+                    <Icon className="size-6" />
+                  </div>
+                  <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-neutral-800 text-neutral-300">
+                    {mod.badge}
+                  </span>
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white group-hover:text-amber-400 transition-colors">
+                    {mod.title}
+                  </h2>
+                  <p className="text-xs text-neutral-400 leading-relaxed mt-1">
+                    {mod.description}
+                  </p>
+                </div>
+              </div>
 
-        {/* Orquestación de Módulos */}
-        {activeView === "menu" && <AdminMenu onSelectView={setActiveView} productCount={products.length} />}
-        {activeView === "inventory" && <InventoryModule products={products} loading={loadingProducts} onRefresh={loadData} />}
-        
-        {activeView === "bamboo_points" && (
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-8 text-center space-y-4">
-            <Award className="size-8 text-amber-400 mx-auto" />
-            <h2 className="text-xl font-bold text-white">Módulo de Puntos Bambú</h2>
-            <p className="text-xs text-neutral-400 max-w-md mx-auto">Gestión de fidelización de clientes en desarrollo.</p>
-          </div>
-        )}
-
-        {activeView === "orders" && (
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-8 text-center space-y-4">
-            <ShoppingCart className="size-8 text-blue-400 mx-auto" />
-            <h2 className="text-xl font-bold text-white">Gestión de Pedidos</h2>
-            <p className="text-xs text-neutral-400 max-w-md mx-auto">Monitoreo de pedidos de WhatsApp en desarrollo.</p>
-          </div>
-        )}
-
-        {activeView === "settings" && (
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-8 text-center space-y-4">
-            <Settings className="size-8 text-purple-400 mx-auto" />
-            <h2 className="text-xl font-bold text-white">Configuración del Sistema</h2>
-            <p className="text-xs text-neutral-400 max-w-md mx-auto">Parámetros globales en desarrollo.</p>
-          </div>
-        )}
-
+              <div className="mt-6 flex items-center text-xs font-semibold text-amber-400 group-hover:translate-x-1 transition-transform">
+                <span>Ingresar al módulo</span>
+                <ArrowRight className="size-4 ml-1.5" />
+              </div>
+            </Link>
+          )
+        })}
       </div>
     </div>
   )
