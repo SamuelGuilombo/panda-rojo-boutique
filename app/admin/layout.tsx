@@ -14,6 +14,7 @@ import {
   Settings,
   LogOut,
   Store,
+  FileText,
 } from "lucide-react"
 
 export default function AdminLayout({
@@ -45,6 +46,7 @@ export default function AdminLayout({
     { href: "/admin/inventory", label: "Inventario", icon: Package },
     { href: "/admin/points", label: "Puntos Bambú", icon: Award },
     { href: "/admin/orders", label: "Pedidos", icon: ShoppingCart },
+    { href: "/admin/fiscal", label: "Control Fiscal", icon: FileText },
     { href: "/admin/settings", label: "Ajustes", icon: Settings },
   ]
 
@@ -85,7 +87,7 @@ export default function AdminLayout({
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium transition-all ${
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
                       isActive
                         ? "bg-neutral-800 text-amber-400 font-semibold shadow-xs"
                         : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900"
@@ -139,7 +141,7 @@ export default function AdminLayout({
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl text-[10px] font-medium transition-colors ${
+              className={`flex flex-col items-center gap-1 px-2.5 py-1.5 rounded-xl text-[10px] font-medium transition-colors ${
                 isActive
                   ? "text-amber-400 bg-neutral-900 font-semibold"
                   : "text-neutral-400 hover:text-neutral-200"

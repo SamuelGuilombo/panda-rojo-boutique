@@ -197,6 +197,46 @@ export async function uploadProductImages(files: File[]): Promise<string[]> {
 }
 
 /**
+ * Función auxiliar corregida para actualizar limpiamente el registro diario del libro fiscal
+ */
+async function updateDailyFiscalRecordOnSale(saleAmount: number) {
+  const today = new Date().toISOString().split("T")[0] // Formato YYYY-MM-DD
+
+  const { data: existing } = await supabase
+    .from("daily_fiscal_records")
+    .select("*")
+    .eq("record_date", today)
+    .maybeSingle()
+
+  if (existing) {
+    const newCount = (existing.invoice_count || 0) + 1
+    const newTotalInvoicesAmount = Number(existing.total_invoices_amount || 0) + saleAmount
+    const globalExpenses = Number(existing.global_expenses || 0)
+    
+    // El ingreso total real del día es la suma de facturas menos los egresos globales manuales
+    const newTotalIncome = newTotalInvoicesAmount - globalExpenses
+
+    await supabase
+      .from("daily_fiscal_records")
+      .update({
+        invoice_count: newCount,
+        total_invoices_amount: newTotalInvoicesAmount,
+        total_income: newTotalIncome,
+      })
+      .eq("record_date", today)
+  } else {
+    await supabase.from("daily_fiscal_records").insert({
+      record_date: today,
+      invoice_count: 1,
+      total_invoices_amount: saleAmount,
+      unbilled_income: 0,
+      total_income: saleAmount, // Arranca con el monto de la venta y 0 egresos
+      global_expenses: 0,
+    })
+  }
+}
+
+/**
  * REGISTRO DE VENTA Y CONEXIÓN COMPLETA A SUPABASE
  */
 export async function processSale(saleData: CompleteSaleData) {
@@ -281,14 +321,27 @@ export async function processSale(saleData: CompleteSaleData) {
           updatedStockBySizesAndColors[item.size] = Math.max(0, updatedStockBySizesAndColors[item.size] - item.quantity)
         }
 
-        await supabase
-          .from("products")
-          .update({
-            total_stock: newTotal,
-            stock_by_sizes: updatedStockBySizes,
-            stock_by_sizes_and_colors: updatedStockBySizesAndColors,
-          })
-          .eq("id", item.product_id)
+        // Si el stock total llega a 0, eliminamos el producto automáticamente de la base de datos
+        if (newTotal === 0) {
+          const { error: deleteError } = await supabase
+            .from("products")
+            .delete()
+            .eq("id", item.product_id)
+
+          if (deleteError) {
+            console.error("Error al eliminar el producto agotado:", deleteError)
+          }
+        } else {
+          // Si aún queda stock, simplemente actualizamos las cantidades
+          await supabase
+            .from("products")
+            .update({
+              total_stock: newTotal,
+              stock_by_sizes: updatedStockBySizes,
+              stock_by_sizes_and_colors: updatedStockBySizesAndColors,
+            })
+            .eq("id", item.product_id)
+        }
       }
     }
 
@@ -314,7 +367,6 @@ export async function processSale(saleData: CompleteSaleData) {
       }
 
       if (pointsEarned > 0) {
-        // Se corrige a "EARN" para que coincida con el tipo esperado por point_transactions
         const { error: txError } = await supabase.from("point_transactions").insert({
           customer_id: numericCustomerId,
           points: pointsEarned,
@@ -328,6 +380,9 @@ export async function processSale(saleData: CompleteSaleData) {
         }
       }
     }
+
+    // 5. Alimentar automáticamente el registro diario del libro fiscal con el monto real cobrado en la venta
+    await updateDailyFiscalRecordOnSale(finalAmount)
 
     return { success: true }
   } catch (error) {
