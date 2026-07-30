@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { formatCOP } from "@/data/products"
-import { Loader2 } from "lucide-react"
+import { Loader2, ShoppingBag, X } from "lucide-react"
 
 export function CustomerCheckoutModal({
   totalAmount: initialTotalAmount,
@@ -25,15 +25,15 @@ export function CustomerCheckoutModal({
   const [paymentMethod, setPaymentMethod] = useState("Efectivo")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Estado para el total a cobrar editable (descuento personalizado)
+  // Estado para el total a cobrar editable (permite aplicar descuentos directos)
   const [customTotalInput, setCustomTotalInput] = useState(initialTotalAmount.toString())
 
-  // Sincronizar si cambia el monto inicial
+  // Sincronizar si cambia el monto inicial prop
   useEffect(() => {
     setCustomTotalInput(initialTotalAmount.toString())
   }, [initialTotalAmount])
 
-  // Cerrar al presionar la tecla ESC
+  // Cerrar al presionar la tecla ESC (siempre que no esté procesando la venta)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !isSubmitting) onClose()
@@ -46,7 +46,7 @@ export function CustomerCheckoutModal({
   const finalAmount = Math.max(0, Number(customTotalInput) || 0)
   const discountAmount = Math.max(0, initialTotalAmount - finalAmount)
 
-  // Recálculo exacto de Puntos Bambú sobre lo pagado realmente
+  // Recálculo exacto de Puntos Bambú sobre el total real cobrado
   const pointsEarned = Math.floor(finalAmount / 1000)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -72,7 +72,7 @@ export function CustomerCheckoutModal({
   return (
     <div 
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto animate-in fade-in duration-200"
-      onClick={() => !isSubmitting && onClose()} // Cierra al hacer clic afuera si no está guardando
+      onClick={() => !isSubmitting && onClose()} // Cierra al hacer clic en el backdrop
     >
       <div 
         className="w-full max-w-md my-8 rounded-2xl bg-zinc-900 border border-zinc-800 p-6 text-white shadow-2xl relative"
@@ -81,11 +81,12 @@ export function CustomerCheckoutModal({
         {/* Encabezado */}
         <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
           <div className="flex items-center gap-2">
-            <span className="p-2 rounded-lg bg-amber-500/10 text-amber-500">🛍️</span>
-            <h2 className="font-bold text-lg">Completar Venta</h2>
+            <span className="p-2 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center">
+              <ShoppingBag size={18} />
+            </span>
+            <h2 className="font-bold text-lg text-white">Completar Venta</h2>
           </div>
           
-          {/* BOTÓN X PARA CERRAR */}
           <button 
             type="button" 
             onClick={onClose} 
@@ -93,7 +94,7 @@ export function CustomerCheckoutModal({
             className="size-8 rounded-lg flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer disabled:opacity-50"
             aria-label="Cerrar modal"
           >
-            ✕
+            <X size={18} />
           </button>
         </div>
 
@@ -151,12 +152,12 @@ export function CustomerCheckoutModal({
             </div>
           </label>
 
-          {/* Campos del cliente (Solo si quiere puntos) */}
+          {/* Campos del cliente */}
           {wantPoints && (
             <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
               <div>
                 <label className="block text-xs font-medium text-zinc-400 mb-1">
-                  Teléfono or Cédula del Cliente *
+                  Teléfono o Cédula del Cliente *
                 </label>
                 <input
                   type="text"
@@ -207,7 +208,7 @@ export function CustomerCheckoutModal({
             </div>
           </div>
 
-          {/* Botón de Confirmación */}
+          {/* Botones de Acción */}
           <div className="flex gap-2 pt-2">
             <button
               type="button"

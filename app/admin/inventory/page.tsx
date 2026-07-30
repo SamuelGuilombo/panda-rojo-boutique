@@ -4,9 +4,11 @@ import { useEffect, useState } from "react"
 import { fetchProducts, AdminProduct } from "@/services/productService"
 import { InventoryModule } from "@/components/admin/InventoryModule"
 import { Button } from "@/components/ui/button"
+import { useAuth } from "@/hooks/useAuth"
 import { RefreshCw } from "lucide-react"
 
 export default function InventoryPage() {
+  const { isAdmin } = useAuth()
   const [products, setProducts] = useState<AdminProduct[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -30,9 +32,13 @@ export default function InventoryPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Gestión de Inventario</h1>
+          <h1 className="text-2xl font-bold text-white">
+            {isAdmin ? "Gestión de Inventario" : "Consulta de Inventario"}
+          </h1>
           <p className="text-xs text-neutral-400 mt-0.5">
-            Administra prendas, variantes, tallas, colores y existencias.
+            {isAdmin
+              ? "Administra prendas, variantes, tallas, colores, precios y existencias."
+              : "Consulta prendas disponibles, tallas, colores y precios para ventas en caja."}
           </p>
         </div>
         <Button
@@ -46,7 +52,12 @@ export default function InventoryPage() {
         </Button>
       </div>
 
-      <InventoryModule products={products} loading={loading} onRefresh={loadData} />
+      <InventoryModule 
+        products={products} 
+        loading={loading} 
+        onRefresh={loadData}
+        isAdmin={isAdmin}
+      />
     </div>
   )
 }

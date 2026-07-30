@@ -41,9 +41,9 @@ export interface Product {
   id: string
   name: string
   price: number
-  category: CategoryId
+  category: CategoryId | string
   subcategory: string
-  origin?: Origin
+  origin?: Origin | string
   images: string[]
   description: string
   sizes: string[]
@@ -51,30 +51,36 @@ export interface Product {
   bestSeller?: boolean
 }
 
-// Extensión del Producto para la Base de Datos y Panel de Admin
+// Extensión del Producto para la Base de Datos y Panel de Administración
 export interface AdminProduct extends Product {
-  costPrice: number // Precio de costo para cálculo de utilidad
+  costPrice?: number // Precio de costo para cálculo de margen de utilidad
   stockBySizes: Record<string, number> // Ej: { "S": 2, "M": 0, "L": 1 }
-  totalStock: number // Total de unidades acumuladas
+  colorsBySizes?: Record<string, string[]> // Ej: { "S": ["Negro", "Blanco"] }
+  stockBySizesAndColors?: Record<string, number> // Ej: { "S-Negro": 2, "M-Blanco": 1 }
+  totalStock: number // Total de unidades acumuladas en el producto
   createdAt?: string
 }
 
-// Registro de Ventas para Contabilidad y Control de Inventario
+// Registro de Ventas para Contabilidad y Libro Fiscal
 export interface SaleRecord {
   id?: string
   productId: string
   productName: string
   quantity: number
-  size: string
+  size?: string
+  selectedColor?: string
   costPrice: number
   salePrice: number
-  profit: number // Utilidad neta: (salePrice - costPrice) * quantity
+  profit: number // Utilidad neta
+  discount?: number
+  paymentMethod: string
+  customerId?: number | string
   createdAt?: string
 }
 
 // Modelo para el Programa de Fidelización (Puntos Bambú)
 export interface Customer {
-  id?: string
+  id?: number | string
   phone: string
   name?: string
   points: number
@@ -84,14 +90,26 @@ export interface Customer {
 // Transacción individual de Puntos Bambú
 export interface PointTransaction {
   id?: string
-  customerId: string
+  customerId: number | string
   points: number
-  type: "earned_purchase" | "earned_social" | "earned_review" | "redeemed"
+  type: "EARN" | "REDEEM" | "earned_purchase" | "earned_social" | "earned_review" | "redeemed"
   description: string
   createdAt?: string
 }
 
-// Formateador oficial de moneda para Colombia
+// Registro Diario del Libro Fiscal
+export interface DailyFiscalRecord {
+  id?: string
+  recordDate: string
+  invoiceCount: number
+  totalInvoicesAmount: number
+  unbilledIncome: number
+  totalIncome: number
+  globalExpenses: number
+  createdAt?: string
+}
+
+// Formateador oficial de moneda para Colombia (COP)
 export function formatCOP(value: number): string {
   return new Intl.NumberFormat("es-CO", {
     style: "currency",

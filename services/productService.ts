@@ -197,7 +197,7 @@ export async function uploadProductImages(files: File[]): Promise<string[]> {
 }
 
 /**
- * Función auxiliar corregida para actualizar limpiamente el registro diario del libro fiscal
+ * Función auxiliar para actualizar limpiamente el registro diario del libro fiscal
  */
 async function updateDailyFiscalRecordOnSale(saleAmount: number) {
   const today = new Date().toISOString().split("T")[0] // Formato YYYY-MM-DD
@@ -230,7 +230,7 @@ async function updateDailyFiscalRecordOnSale(saleAmount: number) {
       invoice_count: 1,
       total_invoices_amount: saleAmount,
       unbilled_income: 0,
-      total_income: saleAmount, // Arranca con el monto de la venta y 0 egresos
+      total_income: saleAmount,
       global_expenses: 0,
     })
   }
@@ -243,7 +243,7 @@ export async function processSale(saleData: CompleteSaleData) {
   const { items, finalAmount, discount, paymentMethod, customerId, customerName } = saleData
 
   try {
-    // 0. Asegurar que el cliente exista en la tabla "customers" antes de registrar la venta si se proporciona ID
+    // 0. Asegurar que el cliente exista en la tabla "customers" si se proporciona ID
     let numericCustomerId: number | null = null
     if (customerId) {
       numericCustomerId = Number(customerId)
@@ -321,7 +321,7 @@ export async function processSale(saleData: CompleteSaleData) {
           updatedStockBySizesAndColors[item.size] = Math.max(0, updatedStockBySizesAndColors[item.size] - item.quantity)
         }
 
-        // Si el stock total llega a 0, eliminamos el producto automáticamente de la base de datos
+        // Si el stock total llega a 0, eliminamos el producto automáticamente
         if (newTotal === 0) {
           const { error: deleteError } = await supabase
             .from("products")
@@ -332,7 +332,7 @@ export async function processSale(saleData: CompleteSaleData) {
             console.error("Error al eliminar el producto agotado:", deleteError)
           }
         } else {
-          // Si aún queda stock, simplemente actualizamos las cantidades
+          // Si aún queda stock, actualizamos las cantidades
           await supabase
             .from("products")
             .update({
@@ -345,7 +345,7 @@ export async function processSale(saleData: CompleteSaleData) {
       }
     }
 
-    // 4. Gestionar cliente y puntos (acumulación y transacciones detalladas)
+    // 4. Gestionar cliente y puntos acumulados
     if (numericCustomerId) {
       const pointsEarned = Math.floor(finalAmount / 1000)
 
@@ -381,7 +381,7 @@ export async function processSale(saleData: CompleteSaleData) {
       }
     }
 
-    // 5. Alimentar automáticamente el registro diario del libro fiscal con el monto real cobrado en la venta
+    // 5. Alimentar el registro diario del libro fiscal con el monto cobrado
     await updateDailyFiscalRecordOnSale(finalAmount)
 
     return { success: true }

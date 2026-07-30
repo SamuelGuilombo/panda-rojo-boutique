@@ -18,11 +18,19 @@ export function AdminLoginForm({ onSuccess }: { onSuccess: () => void }) {
     setAuthError(null)
     setLoggingIn(true)
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
       setAuthError("Credenciales inválidas. Verifica tu correo y contraseña.")
-    } else {
+    } else if (data.user) {
+      // Obtenemos el rol guardado en los metadatos de Supabase Auth (por defecto 'cajero')
+      const userRole = data.user.user_metadata?.role || "cajero"
+      
+      // Guardamos el rol en la sesión local para que la navegación lo consulte
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("user_role", userRole)
+      }
+
       onSuccess()
     }
     setLoggingIn(false)
@@ -35,9 +43,9 @@ export function AdminLoginForm({ onSuccess }: { onSuccess: () => void }) {
           <div className="size-12 rounded-2xl bg-neutral-800 border border-neutral-700 flex items-center justify-center text-white mx-auto">
             <Lock className="size-6" />
           </div>
-          <h1 className="text-xl font-serif font-bold text-white">Acceso Administrativo</h1>
+          <h1 className="text-xl font-serif font-bold text-white">Acceso al Sistema</h1>
           <p className="text-xs text-neutral-400">
-            Ingresa tus credenciales autorizadas para gestionar la tienda.
+            Ingresa tus credenciales autorizadas para gestionar o vender en la tienda.
           </p>
         </div>
 
@@ -57,7 +65,7 @@ export function AdminLoginForm({ onSuccess }: { onSuccess: () => void }) {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@mitienda.com"
+                placeholder="admin@pandarojo.com"
                 required
                 className="bg-neutral-950 border-neutral-800 text-white text-xs pl-9"
               />
